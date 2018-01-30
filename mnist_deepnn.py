@@ -29,7 +29,7 @@ def deepnn(x, phase_train):
 
     # First convolutional layer - maps one image to 64 feature maps.
     with tf.name_scope('conv1'):
-        W_conv1 = weight_variable([5, 5, 3, 64])
+        W_conv1 = weight_variable_conv2d('W_conv1', [5, 5, 3, 64])
         b_conv1 = bias_variable([64])
         conv1_output = conv2d(x_image, W_conv1) + b_conv1
         h_conv1 = tf.nn.relu(conv1_output)
@@ -41,7 +41,7 @@ def deepnn(x, phase_train):
 
     # Second convolutional layer -- maps 64 feature maps to 64.
     with tf.name_scope('conv2'):
-        W_conv2 = weight_variable([5, 5, 64, 64])
+        W_conv2 = weight_variable_conv2d('W_conv2', [5, 5, 64, 64])
         b_conv2 = bias_variable([64])
         conv2_output = conv2d(h_pool1, W_conv2) + b_conv2
         h_conv2 = tf.nn.relu(conv2_output)
@@ -54,7 +54,7 @@ def deepnn(x, phase_train):
     # Fully connected layer 1 -- after 2 round of downsampling, our 32x32 image
     # is down to 8x8x64 feature maps -- maps this to 384 features.
     with tf.name_scope('fc1'):
-        W_fc1 = weight_variable([8 * 8 * 64, 384])
+        W_fc1 = weight_variable('W_fc1', [8 * 8 * 64, 384])
         b_fc1 = bias_variable([384])
 
         h_pool2_flat = tf.reshape(h_pool2, [-1, 8*8*64])
@@ -69,7 +69,7 @@ def deepnn(x, phase_train):
     # Fully connected layer 2 -- after 2 round of downsampling, our 32x32 image
     # is down to 384 features -- maps this to 192 features.
     with tf.name_scope('fc2'):
-        W_fc2 = weight_variable([384, 192])
+        W_fc2 = weight_variable('W_fc2', [384, 192])
         b_fc2 = bias_variable([192])
 
         h_fc2 = tf.nn.relu(tf.matmul(h_fc1_drop, W_fc2) + b_fc2)
@@ -81,7 +81,7 @@ def deepnn(x, phase_train):
 
     # Map the 1024 features to 10 classes, one for each digit
     with tf.name_scope('fc3'):
-        W_fc3 = weight_variable([192, 10])
+        W_fc3 = weight_variable('W_fc3', [192, 10])
         b_fc3 = bias_variable([10])
 
         y_conv = tf.matmul(h_fc2_drop, W_fc3) + b_fc3
@@ -99,9 +99,15 @@ def max_pool_2x2(x):
                           strides=[1, 2, 2, 1], padding='SAME')
 
 
-def weight_variable(shape):
+def weight_variable(name, shape):
     """weight_variable generates a weight variable of a given shape."""
-    initial = tf.truncated_normal(shape, stddev=0.1)
+    initial = tf.get_variable(name, shape=shape, initializer=tf.contrib.layers.xavier_initializer())
+    return tf.Variable(initial)
+
+
+def weight_variable_conv2d(name, shape):
+    """weight_variable generates a weight variable of a given shape."""
+    initial = tf.get_variable(name, shape=shape, initializer=tf.contrib.layers.xavier_initializer_conv2d())
     return tf.Variable(initial)
 
 
