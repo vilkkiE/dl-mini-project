@@ -6,6 +6,7 @@ import sys
 import tempfile
 
 from read_data import get_data
+from itertools import product
 
 import tensorflow as tf
 
@@ -27,21 +28,21 @@ def deepnn(x, phase_train):
         # Pre-process
         x_image = tf.map_fn(lambda image: tf.image.per_image_standardization(image), x_image)
 
-    # First convolutional layer - maps one image to 64 feature maps.
+    # First convolutional layer - maps one image to 32 feature maps.
     with tf.name_scope('conv1'):
-        W_conv1 = weight_variable_conv2d('W_conv1', [5, 5, 3, 64])
-        b_conv1 = bias_variable([64])
+        W_conv1 = weight_variable_conv2d('W_conv1', [5, 5, 3, 32])
+        b_conv1 = bias_variable([32])
         conv1_output = conv2d(x_image, W_conv1) + b_conv1
         h_conv1 = tf.nn.relu(conv1_output)
-        conv1_bn = batch_norm(h_conv1, 64, phase_train)
+        conv1_bn = batch_norm(h_conv1, 32, phase_train)
 
     # Pooling layer - downsamples by 2X.
     with tf.name_scope('pool1'):
         h_pool1 = max_pool_2x2(conv1_bn)
 
-    # Second convolutional layer -- maps 64 feature maps to 64.
+    # Second convolutional layer -- maps 32 feature maps to 64.
     with tf.name_scope('conv2'):
-        W_conv2 = weight_variable_conv2d('W_conv2', [5, 5, 64, 64])
+        W_conv2 = weight_variable_conv2d('W_conv2', [5, 5, 32, 64])
         b_conv2 = bias_variable([64])
         conv2_output = conv2d(h_pool1, W_conv2) + b_conv2
         h_conv2 = tf.nn.relu(conv2_output)
@@ -149,10 +150,9 @@ def batch_norm(x, n_out, phase_train):
     return normed
 
 
-def main(_):
+def run(learning_rate, batch_size):
     # Import data
     train_data, train_labels, test_data, test_labels, meta_data = get_data()
-    batch_size = 50
     batches = int(50000 / batch_size)
     phase_train = tf.placeholder(tf.bool, name='phase_train')
 
@@ -166,25 +166,26 @@ def main(_):
     y_conv, keep_prob = deepnn(x, phase_train)
 
     with tf.name_scope('loss'):
-        cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels=y_,
+        cross_entropy = tf.nn.softmax_cross_entropy_with_logits_v2(labels=y_,
                                                                 logits=y_conv)
     cross_entropy = tf.reduce_mean(cross_entropy)
 
     with tf.name_scope('adam_optimizer'):
-        train_step = tf.train.AdamOptimizer(1e-3).minimize(cross_entropy)
+        train_step = tf.train.AdamOptimizer(learning_rate).minimize(cross_entropy)
 
     with tf.name_scope('accuracy'):
         correct_prediction = tf.equal(tf.argmax(y_conv, 1), tf.argmax(y_, 1))
         correct_prediction = tf.cast(correct_prediction, tf.float32)
     accuracy = tf.reduce_mean(correct_prediction)
 
-    graph_location = tempfile.mkdtemp()
-    print('Saving graph to: %s' % graph_location)
-    train_writer = tf.summary.FileWriter(graph_location)
-    train_writer.add_graph(tf.get_default_graph())
+    # graph_location = tempfile.mkdtemp()
+    # print('Saving graph to: %s' % graph_location)
+    # train_writer = tf.summary.FileWriter(graph_location)
+    # train_writer.add_graph(tf.get_default_graph())
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
+        print('learning rate: %g, batch size: %d' % (learning_rate, batch_size))
         for i in range(batches):
             batch_start = i*batch_size
             batch = train_data[batch_start:batch_start+batch_size]
@@ -197,6 +198,13 @@ def main(_):
 
         print('test accuracy %g' % accuracy.eval(feed_dict={
             x: test_data, y_: test_labels, keep_prob: 1.0, phase_train: False}))
+
+
+def main(_):
+    learning_rates = [1e-1, 1e-2, 1e-3, 1e-4, 1e-5]
+    batch_sizes = [25, 50, 100, 200, 500]
+    for learning_rate, batch_size in product(learning_rates, batch_sizes):
+        run(learning_rate, batch_size)
 
 
 if __name__ == '__main__':
