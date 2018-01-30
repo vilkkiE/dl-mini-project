@@ -32,24 +32,24 @@ def deepnn(x, phase_train):
         W_conv1 = weight_variable([5, 5, 3, 64])
         b_conv1 = bias_variable([64])
         conv1_output = conv2d(x_image, W_conv1) + b_conv1
-        conv1_bn = batch_norm(conv1_output, 64, phase_train)
-        h_conv1 = tf.nn.relu(conv1_bn)
+        h_conv1 = tf.nn.relu(conv1_output)
+        conv1_bn = batch_norm(h_conv1, 64, phase_train)
 
     # Pooling layer - downsamples by 2X.
     with tf.name_scope('pool1'):
-        h_pool1 = max_pool_2x2(h_conv1)
+        h_pool1 = max_pool_2x2(conv1_bn)
 
     # Second convolutional layer -- maps 64 feature maps to 64.
     with tf.name_scope('conv2'):
         W_conv2 = weight_variable([5, 5, 64, 64])
         b_conv2 = bias_variable([64])
         conv2_output = conv2d(h_pool1, W_conv2) + b_conv2
-        conv2_bn = batch_norm(conv2_output, 64, phase_train)
-        h_conv2 = tf.nn.relu(conv2_bn)
+        h_conv2 = tf.nn.relu(conv2_output)
+        conv2_bn = batch_norm(h_conv2, 64, phase_train)
 
     # Second pooling layer.
     with tf.name_scope('pool2'):
-        h_pool2 = max_pool_2x2(h_conv2)
+        h_pool2 = max_pool_2x2(conv2_bn)
 
     # Fully connected layer 1 -- after 2 round of downsampling, our 32x32 image
     # is down to 8x8x64 feature maps -- maps this to 384 features.
@@ -60,16 +60,23 @@ def deepnn(x, phase_train):
         h_pool2_flat = tf.reshape(h_pool2, [-1, 8*8*64])
         h_fc1 = tf.nn.relu(tf.matmul(h_pool2_flat, W_fc1) + b_fc1)
 
+    # Dropout - controls the complexity of the model, prevents co-adaptation of
+    # features.
+    with tf.name_scope('dropout1'):
+        keep_prob = tf.placeholder(tf.float32)
+        h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)
+
+    # Fully connected layer 2 -- after 2 round of downsampling, our 32x32 image
+    # is down to 384 features -- maps this to 192 features.
     with tf.name_scope('fc2'):
         W_fc2 = weight_variable([384, 192])
         b_fc2 = bias_variable([192])
 
-        h_fc2 = tf.nn.relu(tf.matmul(h_fc1, W_fc2) + b_fc2)
+        h_fc2 = tf.nn.relu(tf.matmul(h_fc1_drop, W_fc2) + b_fc2)
 
     # Dropout - controls the complexity of the model, prevents co-adaptation of
     # features.
-    with tf.name_scope('dropout'):
-        keep_prob = tf.placeholder(tf.float32)
+    with tf.name_scope('dropout2'):
         h_fc2_drop = tf.nn.dropout(h_fc2, keep_prob)
 
     # Map the 1024 features to 10 classes, one for each digit
