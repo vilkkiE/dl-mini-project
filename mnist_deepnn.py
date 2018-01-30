@@ -150,10 +150,10 @@ def batch_norm(x, n_out, phase_train):
     return normed
 
 
-def run(learning_rate, batch_size):
+def main(_):
     # Import data
     train_data, train_labels, test_data, test_labels, meta_data = get_data()
-    batches = int(50000 / batch_size)
+    tf_learning_rate = tf.placeholder(tf.float32, name='tf_learning_rate')
     phase_train = tf.placeholder(tf.bool, name='phase_train')
 
     # Create the model
@@ -171,7 +171,7 @@ def run(learning_rate, batch_size):
     cross_entropy = tf.reduce_mean(cross_entropy)
 
     with tf.name_scope('adam_optimizer'):
-        train_step = tf.train.AdamOptimizer(learning_rate).minimize(cross_entropy)
+        train_step = tf.train.AdamOptimizer(tf_learning_rate).minimize(cross_entropy)
 
     with tf.name_scope('accuracy'):
         correct_prediction = tf.equal(tf.argmax(y_conv, 1), tf.argmax(y_, 1))
@@ -183,28 +183,25 @@ def run(learning_rate, batch_size):
     # train_writer = tf.summary.FileWriter(graph_location)
     # train_writer.add_graph(tf.get_default_graph())
 
-    with tf.Session() as sess:
-        sess.run(tf.global_variables_initializer())
-        print('learning rate: %g, batch size: %d' % (learning_rate, batch_size))
-        for i in range(batches):
-            batch_start = i*batch_size
-            batch = train_data[batch_start:batch_start+batch_size]
-            batch_labels = train_labels[batch_start:batch_start+batch_size]
-            if i % 100 == 0:
-                train_accuracy = accuracy.eval(feed_dict={
-                    x: batch, y_: batch_labels, keep_prob: 1.0, phase_train: False})
-                print('step %d, training accuracy %g' % (i, train_accuracy))
-            train_step.run(feed_dict={x: batch, y_: batch_labels, keep_prob: 0.5, phase_train: True})
-
-        print('test accuracy %g' % accuracy.eval(feed_dict={
-            x: test_data, y_: test_labels, keep_prob: 1.0, phase_train: False}))
-
-
-def main(_):
     learning_rates = [1e-1, 1e-2, 1e-3, 1e-4, 1e-5]
     batch_sizes = [25, 50, 100, 200, 500]
     for learning_rate, batch_size in product(learning_rates, batch_sizes):
-        run(learning_rate, batch_size)
+        with tf.Session() as sess:
+            sess.run(tf.global_variables_initializer())
+            print('learning rate: %g, batch size: %d' % (learning_rate, batch_size))
+            batches = int(50000 / batch_size)
+            for i in range(batches):
+                batch_start = i*batch_size
+                batch = train_data[batch_start:batch_start+batch_size]
+                batch_labels = train_labels[batch_start:batch_start+batch_size]
+                if i % 100 == 0:
+                    train_accuracy = accuracy.eval(feed_dict={
+                        x: batch, y_: batch_labels, keep_prob: 1.0, phase_train: False, tf_learning_rate: learning_rate})
+                    print('step %d, training accuracy %g' % (i, train_accuracy))
+                train_step.run(feed_dict={x: batch, y_: batch_labels, keep_prob: 0.5, phase_train: True, tf_learning_rate: learning_rate})
+
+            print('test accuracy %g \n' % accuracy.eval(feed_dict={
+                x: test_data, y_: test_labels, keep_prob: 1.0, phase_train: False, tf_learning_rate: learning_rate}))
 
 
 if __name__ == '__main__':
